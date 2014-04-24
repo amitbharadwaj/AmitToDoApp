@@ -21,7 +21,7 @@ public class DataStore {
 	}
 
 
-	public long createRecords(int id, String name){  
+	public long createRecords(String id, String name){  
 	   ContentValues values = new ContentValues();  
 	   values.put(ID, id);  
 	   values.put(TODO, name);  
@@ -36,6 +36,18 @@ public class DataStore {
 	     mCursor.moveToFirst();  
 	   }  
 	   return mCursor; // iterate to get each value.
+	}
+
+
+	public boolean removeRow(String itemId) {
+		return database.delete(TABLE, ID + "=  " + itemId , null) > 0;
+	}
+
+
+	public void updateRow(String filter, String column, String value) {
+		ContentValues args = new ContentValues();
+		args.put(column, value);
+		database.update(TABLE, args, filter, null);
 	}
 }
 

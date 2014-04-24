@@ -1,6 +1,7 @@
 package com.amit.codepath;
 
 import java.util.ArrayList;
+import java.util.Date;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -18,100 +19,115 @@ import android.widget.Toast;
 
 public class MainActivity extends Activity {
 	protected static final int REQUEST_CODE = 1;
-	private int countForId;
 	private DataStore dataStore;
-	private EditText etItems;
+	private EditText etTodoItems;
 	private ListView lvTodoList;
-	
+	Cursor itemsCursor;
+
 	int posBeingEdited;
-	
+
 	private ArrayList<String> todoItems;
 	private ArrayAdapter<String> itemsAdapter;
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-        dataStore = new DataStore(this);
-        etItems = (EditText) findViewById(R.id.etTodoItems);
-        lvTodoList = (ListView) findViewById(R.id.todoList);
-        
-        todoItems = new ArrayList<String>();
-        itemsAdapter = new ArrayAdapter<String>(this,
-        		android.R.layout.simple_list_item_1, todoItems);
-        lvTodoList.setAdapter(itemsAdapter);
-        
-        Cursor itemsCursor = dataStore.selectRecords();
-       int totalItems = itemsCursor.getCount();
-       countForId = totalItems;
-       // int itemsToShow = totalItems > 6 ? 6 : totalItems;
-       itemsCursor.moveToFirst();
-       for (int i = 0; i < totalItems; i++) {
-    	   todoItems.add(itemsCursor.getString(1));
-    	   itemsCursor.moveToNext();
-       }
-       
-       setupListViewListener();
-        
-    }
+	@Override
+	protected void onCreate(Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+		setContentView(R.layout.activity_main);
+		dataStore = new DataStore(this);
+		etTodoItems = (EditText) findViewById(R.id.etTodoItems);
+		lvTodoList = (ListView) findViewById(R.id.todoList);
 
+		todoItems = new ArrayList<String>();
+		itemsAdapter = new ArrayAdapter<String>(this,
+				android.R.layout.simple_list_item_1, todoItems);
+		lvTodoList.setAdapter(itemsAdapter);
 
-    private void setupListViewListener() {
+		itemsCursor = dataStore.selectRecords();
+		int totalItems = itemsCursor.getCount();
+		itemsCursor.moveToFirst();
+		for (int i = 0; i < totalItems; i++) {
+			todoItems.add(itemsCursor.getString(1));
+			itemsCursor.moveToNext();
+		}
+
+		setupListViewListener();       
+	}
+
+	public void onSubmit(View v) {
+		String item = etTodoItems.getText().toString();
+		dataStore.createRecords(Long.toString(new Date().getTime()), item);
+		// todoItems.add(item);
+		itemsAdapter.add(item);
+		etTodoItems.setText("");
+		Toast.makeText(this, "done", Toast.LENGTH_SHORT).show();
+
+	}
+
+	private void setupListViewListener() {
 		lvTodoList.setOnItemLongClickListener(new OnItemLongClickListener() {
 
 			@Override
-			public boolean onItemLongClick(AdapterView<?> adapter, View item,
+			public boolean onItemLongClick(AdapterView<?> adapter, View itemView,
 					int pos, long id) {
+				String item = todoItems.get(pos);
+				String idToDelete = "0"; 
+				itemsCursor.moveToFirst();
+				for (int i = 0; i < itemsCursor.getCount(); i++) {
+					if (itemsCursor.getString(1).equals(item)) {
+						idToDelete = itemsCursor.getString(0);
+					}
+				itemsCursor.moveToNext();
+				}
+
+				dataStore.removeRow(idToDelete);
 				todoItems.remove(pos);
 				itemsAdapter.notifyDataSetChanged();
-				// dataStore.removeRow();
 				return true;
 			}
-			
 		});
-		
+
 		lvTodoList.setOnItemClickListener(new OnItemClickListener() {
 
 			@Override
 			public void onItemClick(AdapterView<?> adapter, View view, int pos,
 					long id) {
-				 Intent i = new Intent(MainActivity.this, EditItemActivity.class);
-				 posBeingEdited = pos;
-				 i.putExtra("item", todoItems.get(pos));
-				  startActivityForResult(i, REQUEST_CODE);
+				Intent editIntent = new Intent(MainActivity.this, EditItemActivity.class);
+				posBeingEdited = pos;
+				editIntent.putExtra("item", todoItems.get(pos));
+				startActivityForResult(editIntent, REQUEST_CODE);
 			}
 		});
-		
+
 	}
 
 
 	@Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.main, menu);
-        return true;
-    }
-    
-    public void onSubmit(View v) {
-    	String item = etItems.getText().toString();
-    	dataStore.createRecords(++countForId, item);
-    	// todoItems.add(item);
-    	itemsAdapter.add(item);
-    	etItems.setText("");
-    	Toast.makeText(this, "done", Toast.LENGTH_SHORT).show();
-    	
-    }
-    
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-      // REQUEST_CODE is defined above
-      if (resultCode == RESULT_OK && requestCode == REQUEST_CODE) {
-         // Extract name value from result extras
-         String editedItem = data.getExtras().getString("editedItem");
-         // Toast the name to display temporarily on screen
-         todoItems.set(posBeingEdited, editedItem);
-         itemsAdapter.notifyDataSetChanged();
-      }
-    }
-    
+	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+		// REQUEST_CODE is defined above
+		if (resultCode == RESULT_OK && requestCode == REQUEST_CODE) {
+			// Extract name value from result extras
+			String oldItem = todoItems.get(posBeingEdited);
+			String editedItem = data.getExtras().getString("editedItem");
+			todoItems.set(posBeingEdited, editedItem);
+			itemsAdapter.notifyDataSetChanged();
+			String idToUpdate = "0";
+			// update database
+			itemsCursor.moveToFirst();
+			for (int i = 0; i < itemsCursor.getCount(); i++) {
+				if (itemsCursor.getString(1).equals(oldItem)) {
+					idToUpdate = itemsCursor.getString(0);
+				}
+			itemsCursor.moveToNext();
+			}
+			dataStore.updateRow(DataStore.ID + " = " + idToUpdate, "name", editedItem);
+		}
+	}
+
+	@Override
+	public boolean onCreateOptionsMenu(Menu menu) {
+		// Inflate the menu; this adds items to the action bar if it is present.
+		getMenuInflater().inflate(R.menu.main, menu);
+		return true;
+	}
+
 }
